@@ -153,33 +153,58 @@ async def list_tools():
 @app.post("/tools/call")
 async def call_tool(request: Request):
     """Handle tool execution."""
-    data = await request.json()
-    name = data.get("name")
-    arguments = data.get("arguments", {})
-    
-    logger.info(f"Tool call: {name} with arguments {arguments}")
-    
     try:
+        data = await request.json()
+        name = data.get("name")
+        arguments = data.get("arguments", {})
+        
+        logger.info(f"Tool call: {name} with arguments {arguments}")
+        
         if name == "email_finder":
             result = await hunter_api.find_email(**arguments)
-            return {"content": [{"type": "text", "text": json.dumps(result, indent=2)}]}
+            formatted_result = json.dumps(result, indent=2)
+            logger.info(f"Email finder result: {formatted_result}")
+            return {
+                "content": [
+                    {"type": "text", "text": formatted_result}
+                ]
+            }
         
         elif name == "email_verifier":
             result = await hunter_api.verify_email(arguments["email"])
-            return {"content": [{"type": "text", "text": json.dumps(result, indent=2)}]}
+            formatted_result = json.dumps(result, indent=2)
+            logger.info(f"Email verifier result: {formatted_result}")
+            return {
+                "content": [
+                    {"type": "text", "text": formatted_result}
+                ]
+            }
         
         elif name == "domain_search":
             limit = arguments.get("limit", 10)
             email_type = arguments.get("type")
             result = await hunter_api.domain_search(arguments["domain"], limit=limit, type=email_type)
-            return {"content": [{"type": "text", "text": json.dumps(result, indent=2)}]}
+            formatted_result = json.dumps(result, indent=2)
+            logger.info(f"Domain search result: {formatted_result}")
+            return {
+                "content": [
+                    {"type": "text", "text": formatted_result}
+                ]
+            }
         
         else:
-            return JSONResponse(status_code=404, content={"error": f"Unknown tool: {name}"})
+            logger.error(f"Unknown tool: {name}")
+            return JSONResponse(
+                status_code=404, 
+                content={"error": f"Unknown tool: {name}"}
+            )
     
     except Exception as e:
         logger.error(f"Error executing tool {name}: {e}")
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        return JSONResponse(
+            status_code=500, 
+            content={"error": str(e)}
+        )
 
 @app.get("/resources/list")
 async def list_resources():
@@ -240,9 +265,17 @@ async def sse_endpoint(request: Request):
             # Send capabilities message
             logger.info("Sending capabilities event")
             yield {"event": "capabilities", "data": json.dumps({
-                "tools": True,
-                "resources": True,
-                "logging": True
+                "tools": {
+                    "list": True,
+                    "call": True
+                },
+                "resources": {
+                    "list": True,
+                    "read": True
+                },
+                "logging": {
+                    "set_level": True
+                }
             })}
             await asyncio.sleep(0.1)  # Small delay between events
             
