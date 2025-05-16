@@ -36,15 +36,23 @@ if not api_key:
 hunter_api = HunterAPI(api_key)
 
 # Create the FastAPI app
-app = FastAPI(title="Hunter MCP Server", version="1.0.0")
+app = FastAPI(
+    title="Hunter MCP Server", 
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
+)
 
-# Add CORS middleware to allow requests from Shortwave
+# Add CORS middleware with more specific configuration for Shortwave
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # Allow all origins
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
+    allow_methods=["GET", "POST", "OPTIONS"],  # Specify allowed methods
     allow_headers=["*"],  # Allow all headers
+    expose_headers=["Content-Type", "Content-Length"],
+    max_age=600  # Cache preflight requests for 10 minutes
 )
 
 # Root endpoint for testing
@@ -208,50 +216,74 @@ For more information, visit: https://hunter.io/api-documentation/v2
 async def sse_endpoint(request: Request):
     """Server-Sent Events endpoint for MCP."""
     client_host = getattr(request.client, 'host', 'unknown')
-    logger.debug(f"SSE connection requested from {client_host}")
+    logger.info(f"SSE connection requested from {client_host}")
+    
+    # Handle OPTIONS requests for CORS preflight
+    if request.method == "OPTIONS":
+        return JSONResponse(
+            content={"status": "ok"},
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "86400",
+            }
+        )
     
     async def event_generator():
         try:
             # Initial connection event
-            logger.debug("Sending connected event")
+            logger.info("Sending connected event")
             yield {"event": "connected", "data": json.dumps({"server": "hunter-mcp", "version": "1.0.0"})}
+            await asyncio.sleep(0.1)  # Small delay between events
             
             # Send capabilities message
-            logger.debug("Sending capabilities event")
+            logger.info("Sending capabilities event")
             yield {"event": "capabilities", "data": json.dumps({
                 "tools": True,
                 "resources": True,
                 "logging": True
             })}
+            await asyncio.sleep(0.1)  # Small delay between events
             
             # Send initialization complete message
-            logger.debug("Sending initialization_complete event")
+            logger.info("Sending initialization_complete event")
             yield {"event": "initialization_complete", "data": json.dumps({})}
+            await asyncio.sleep(0.1)  # Small delay between events
             
             # Keep connection alive
             count = 0
             while True:
-                await asyncio.sleep(5)  # More frequent pings for testing
+                await asyncio.sleep(10)  # Less frequent pings to reduce load
                 count += 1
                 logger.debug(f"Sending ping event {count}")
                 yield {"event": "ping", "data": json.dumps({"timestamp": asyncio.get_event_loop().time()})}
+        except asyncio.CancelledError:
+            logger.info("SSE connection was cancelled")
         except Exception as e:
             logger.error(f"Error in SSE event generator: {e}")
             raise
     
     headers = {
-        "Cache-Control": "no-cache",
+        "Cache-Control": "no-cache, no-transform",
         "Connection": "keep-alive",
         "X-Accel-Buffering": "no",
         "Content-Type": "text/event-stream",
-        "Access-Control-Allow-Origin": "*"
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "*"
     }
     
-    return EventSourceResponse(
-        event_generator(), 
-        media_type="text/event-stream",
-        headers=headers
-    )
+    try:
+        return EventSourceResponse(
+            event_generator(), 
+            media_type="text/event-stream",
+            headers=headers,
+            ping=10  # Send a ping every 10 seconds
+        )
+    except Exception as e:
+        logger.error(f"Error creating EventSourceResponse: {e}")
+        raise
 
 # Run the server
 def start():
