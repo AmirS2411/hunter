@@ -47,6 +47,21 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
+# Root endpoint for testing
+@app.get("/")
+async def root():
+    return {
+        "message": "Hunter MCP Server is running",
+        "version": "1.0.0",
+        "endpoints": [
+            "/sse - Server-Sent Events endpoint for MCP",
+            "/tools/list - List available tools",
+            "/tools/call - Call a tool",
+            "/resources/list - List available resources",
+            "/resources/read - Read a resource"
+        ]
+    }
+
 # Define MCP tools
 TOOLS = [
     {
@@ -192,7 +207,8 @@ For more information, visit: https://hunter.io/api-documentation/v2
 @app.get("/sse")
 async def sse_endpoint(request: Request):
     """Server-Sent Events endpoint for MCP."""
-    logger.debug(f"SSE connection requested from {request.client.host}")
+    client_host = getattr(request.client, 'host', 'unknown')
+    logger.debug(f"SSE connection requested from {client_host}")
     
     async def event_generator():
         try:
@@ -204,8 +220,13 @@ async def sse_endpoint(request: Request):
             logger.debug("Sending capabilities event")
             yield {"event": "capabilities", "data": json.dumps({
                 "tools": True,
-                "resources": True
+                "resources": True,
+                "logging": True
             })}
+            
+            # Send initialization complete message
+            logger.debug("Sending initialization_complete event")
+            yield {"event": "initialization_complete", "data": json.dumps({})}
             
             # Keep connection alive
             count = 0
@@ -221,7 +242,9 @@ async def sse_endpoint(request: Request):
     headers = {
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
-        "X-Accel-Buffering": "no"
+        "X-Accel-Buffering": "no",
+        "Content-Type": "text/event-stream",
+        "Access-Control-Allow-Origin": "*"
     }
     
     return EventSourceResponse(
