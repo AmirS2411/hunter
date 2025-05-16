@@ -64,9 +64,7 @@ async def root():
         "endpoints": [
             "/sse - Server-Sent Events endpoint for MCP",
             "/tools/list - List available tools",
-            "/tools/call - Call a tool",
-            "/resources/list - List available resources",
-            "/resources/read - Read a resource"
+            "/tools/call - Call a tool"
         ]
     }
 
@@ -135,14 +133,7 @@ TOOLS = [
     }
 ]
 
-# Define MCP resources
-RESOURCES = [
-    {
-        "uri": "hunter://api-info",
-        "title": "Hunter API Information",
-        "description": "Information about the Hunter API and available endpoints"
-    }
-]
+# Resources removed since Shortwave doesn't support them
 
 # MCP API endpoints
 @app.get("/tools/list")
@@ -206,35 +197,7 @@ async def call_tool(request: Request):
             content={"error": str(e)}
         )
 
-@app.get("/resources/list")
-async def list_resources():
-    """List available resources."""
-    return {"resources": RESOURCES}
-
-@app.get("/resources/read")
-async def read_resource(uri: str):
-    """Read a resource."""
-    if uri == "hunter://api-info":
-        content = """
-# Hunter API
-
-Hunter is an email finding and verification service that allows you to:
-- Find email addresses from a domain name
-- Verify the deliverability of email addresses
-- Find the most likely email address from a domain name, first name, and last name
-
-## Available Tools
-
-1. **email_finder** - Find the most likely email address from a domain name, first name, and last name
-2. **email_verifier** - Verify the deliverability of an email address
-3. **domain_search** - Find email addresses from a domain name
-
-## API Documentation
-For more information, visit: https://hunter.io/api-documentation/v2
-"""
-        return {"type": "text/markdown", "data": content}
-    
-    return JSONResponse(status_code=404, content={"error": f"Unknown resource: {uri}"})
+# Resources endpoints removed since Shortwave doesn't support them
 
 # SSE endpoint for MCP
 @app.get("/sse")
@@ -262,24 +225,17 @@ async def sse_endpoint(request: Request):
             yield {"event": "connected", "data": json.dumps({"server": "hunter-mcp", "version": "1.0.0"})}
             await asyncio.sleep(0.1)  # Small delay between events
             
-            # Send capabilities message
+            # Send capabilities message - Shortwave only supports tool calls
             logger.info("Sending capabilities event")
             yield {"event": "capabilities", "data": json.dumps({
                 "tools": {
                     "list": True,
                     "call": True
-                },
-                "resources": {
-                    "list": True,
-                    "read": True
-                },
-                "logging": {
-                    "set_level": True
                 }
             })}
             await asyncio.sleep(0.1)  # Small delay between events
             
-            # Send initialization complete message
+            # Shortwave doesn't need initialization_complete event, but we'll keep it for compatibility
             logger.info("Sending initialization_complete event")
             yield {"event": "initialization_complete", "data": json.dumps({})}
             await asyncio.sleep(0.1)  # Small delay between events
