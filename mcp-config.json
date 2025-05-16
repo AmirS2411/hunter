@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "hunter-mcp": {
+      "command": "python",
+      "args": [
+        "/Users/amir-mackbook/Dev/Hunter MCP/main.py"
+      ],
+      "env": {
+        "HUNTER_API_KEY": "b439e2df52a591e603d679781325"
+      }
+    }
+  }
+}
